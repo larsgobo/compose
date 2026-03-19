@@ -1,34 +1,54 @@
 services:
   analytics:
-    profiles:
-      - disabled
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
 
   rest:
     depends_on:
       db:
         condition: service_healthy
+      analytics:
+        condition: service_started
 
   auth:
     depends_on:
       db:
         condition: service_healthy
+      analytics:
+        condition: service_started
 
   storage:
     depends_on:
       db:
         condition: service_healthy
+      analytics:
+        condition: service_started
 
   realtime:
     depends_on:
       db:
         condition: service_healthy
+      analytics:
+        condition: service_started
 
   meta:
     depends_on:
       db:
         condition: service_healthy
+      analytics:
+        condition: service_started
 
   functions:
     depends_on:
       db:
         condition: service_healthy
+      analytics:
+        condition: service_started
+
+  studio:
+    depends_on:
+      analytics:
+        condition: service_started

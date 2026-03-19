@@ -1,0 +1,34 @@
+services:
+  analytics:
+    profiles:
+      - disabled
+
+  rest:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  auth:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  storage:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  realtime:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  meta:
+    depends_on:
+      db:
+        condition: service_healthy
+
+  functions:
+    depends_on:
+      db:
+        condition: service_healthy

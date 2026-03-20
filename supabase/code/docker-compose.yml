@@ -12,6 +12,8 @@ services:
   studio:
     image: supabase/studio:2025.05.19-sha-3487831
     restart: unless-stopped
+    networks:
+      - supabase_network
     healthcheck:
       test:
         [
@@ -52,6 +54,8 @@ services:
   kong:
     image: kong:2.8.1
     restart: unless-stopped
+    networks:
+      - supabase_network
     volumes:
       # https://github.com/supabase/supabase/issues/12661
       - ./volumes/api/kong.yml:/home/kong/temp.yml:ro,z
@@ -77,6 +81,8 @@ services:
   auth:
     image: supabase/gotrue:v2.172.1
     restart: unless-stopped
+    networks:
+      - supabase_network
     healthcheck:
       test:
         [
@@ -92,7 +98,6 @@ services:
       retries: 3
     depends_on:
       db:
-        # Disable this if you are using an external Postgres database
         condition: service_healthy
       analytics:
         condition: service_healthy
@@ -136,32 +141,14 @@ services:
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
-      # Uncomment to enable custom access token hook. Please see: https://supabase.com/docs/guides/auth/auth-hooks for full list of hooks and additional details about custom_access_token_hook
-
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: "true"
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI: "pg-functions://postgres/public/custom_access_token_hook"
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_SECRETS: "<standard-base64-secret>"
-
-      # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_ENABLED: "true"
-      # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_URI: "pg-functions://postgres/public/mfa_verification_attempt"
-
-      # GOTRUE_HOOK_PASSWORD_VERIFICATION_ATTEMPT_ENABLED: "true"
-      # GOTRUE_HOOK_PASSWORD_VERIFICATION_ATTEMPT_URI: "pg-functions://postgres/public/password_verification_attempt"
-
-      # GOTRUE_HOOK_SEND_SMS_ENABLED: "false"
-      # GOTRUE_HOOK_SEND_SMS_URI: "pg-functions://postgres/public/custom_access_token_hook"
-      # GOTRUE_HOOK_SEND_SMS_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
-
-      # GOTRUE_HOOK_SEND_EMAIL_ENABLED: "false"
-      # GOTRUE_HOOK_SEND_EMAIL_URI: "http://host.docker.internal:54321/functions/v1/email_sender"
-      # GOTRUE_HOOK_SEND_EMAIL_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
 
   rest:
     image: postgrest/postgrest:v12.2.12
     restart: unless-stopped
+    networks:
+      - supabase_network
     depends_on:
       db:
-        # Disable this if you are using an external Postgres database
         condition: service_healthy
       analytics:
         condition: service_healthy
@@ -176,12 +163,12 @@ services:
     command: [ "postgrest" ]
 
   realtime:
-    # This container name looks inconsistent but is correct because realtime constructs tenant id by parsing the subdomain
     image: supabase/realtime:v2.34.47
     restart: unless-stopped
+    networks:
+      - supabase_network
     depends_on:
       db:
-        # Disable this if you are using an external Postgres database
         condition: service_healthy
       analytics:
         condition: service_healthy
@@ -219,10 +206,11 @@ services:
       SEED_SELF_HOST: true
       RUN_JANITOR: true
 
-  # To use S3 backed storage: docker compose -f docker-compose.yml -f docker-compose.s3.yml up
   storage:
     image: supabase/storage-api:v1.22.17
     restart: unless-stopped
+    networks:
+      - supabase_network
     volumes:
       - ./volumes/storage:/var/lib/storage:z
     healthcheck:
@@ -240,7 +228,6 @@ services:
       retries: 3
     depends_on:
       db:
-        # Disable this if you are using an external Postgres database
         condition: service_healthy
       rest:
         condition: service_started
@@ -256,7 +243,6 @@ services:
       STORAGE_BACKEND: file
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
       TENANT_ID: stub
-      # TODO: https://github.com/supabase/storage-api/issues/55
       REGION: stub
       GLOBAL_S3_BUCKET: stub
       ENABLE_IMAGE_TRANSFORMATION: "true"
@@ -265,6 +251,8 @@ services:
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
     restart: unless-stopped
+    networks:
+      - supabase_network
     volumes:
       - ./volumes/storage:/var/lib/storage:z
     healthcheck:
@@ -281,9 +269,10 @@ services:
   meta:
     image: supabase/postgres-meta:v0.89.0
     restart: unless-stopped
+    networks:
+      - supabase_network
     depends_on:
       db:
-        # Disable this if you are using an external Postgres database
         condition: service_healthy
       analytics:
         condition: service_healthy
@@ -298,6 +287,8 @@ services:
   functions:
     image: supabase/edge-runtime:v1.67.4
     restart: unless-stopped
+    networks:
+      - supabase_network
     volumes:
       - ./volumes/functions:/home/deno/functions:Z
     depends_on:
@@ -309,19 +300,14 @@ services:
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      # TODO: Allow configuring VERIFY_JWT per function. This PR might help: https://github.com/supabase/cli/pull/786
       VERIFY_JWT: "${FUNCTIONS_VERIFY_JWT}"
     command: [ "start", "--main-service", "/home/deno/functions/main" ]
 
   analytics:
     image: supabase/logflare:1.12.0
     restart: unless-stopped
-    # Uncomment to use Big Query backend for analytics
-    # volumes:
-    #   - type: bind
-    #     source: ${PWD}/gcloud.json
-    #     target: /opt/app/rel/logflare/bin/gcloud.json
-    #     read_only: true
+    networks:
+      - supabase_network
     healthcheck:
       test: [ "CMD", "curl", "http://localhost:4000/health" ]
       timeout: 5s
@@ -329,7 +315,6 @@ services:
       retries: 10
     depends_on:
       db:
-        # Disable this if you are using an external Postgres database
         condition: service_healthy
     environment:
       LOGFLARE_NODE_HOST: 127.0.0.1
@@ -343,36 +328,24 @@ services:
       LOGFLARE_SINGLE_TENANT: true
       LOGFLARE_SUPABASE_MODE: true
       LOGFLARE_MIN_CLUSTER_SIZE: 1
-
-      # Comment variables to use Big Query backend for analytics
       POSTGRES_BACKEND_URL: postgresql://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/_supabase
       POSTGRES_BACKEND_SCHEMA: _analytics
       LOGFLARE_FEATURE_FLAG_OVERRIDE: multibackend=true
-      # Uncomment to use Big Query backend for analytics
-      # GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID}
-      # GOOGLE_PROJECT_NUMBER: ${GOOGLE_PROJECT_NUMBER}
 
-      # Comment out everything below this point if you are using an external Postgres database
   db:
     image: supabase/postgres:15.8.1.060
     restart: unless-stopped
+    networks:
+      - supabase_network
     volumes:
       - ./volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
-      # Must be superuser to create event trigger
       - ./volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
-      # Must be superuser to alter reserved role
       - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
-      # Initialize the database settings with JWT_SECRET and JWT_EXP
       - ./volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
-      # PGDATA directory is persisted between restarts
       - ./volumes/db/data:/var/lib/postgresql/data:Z
-      # Changes required for internal supabase data such as _analytics
       - ./volumes/db/_supabase.sql:/docker-entrypoint-initdb.d/migrations/97-_supabase.sql:Z
-      # Changes required for Analytics support
       - ./volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:Z
-      # Changes required for Pooler support
       - ./volumes/db/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:Z
-      # Use named volume to persist pgsodium decryption key between restarts
       - db-config:/etc/postgresql-custom
     healthcheck:
       test: [ "CMD", "pg_isready", "-U", "postgres", "-h", "localhost" ]
@@ -398,12 +371,14 @@ services:
         "-c",
         "config_file=/etc/postgresql/postgresql.conf",
         "-c",
-        "log_min_messages=fatal" # prevents Realtime polling queries from appearing in logs
+        "log_min_messages=fatal"
       ]
 
   vector:
     image: timberio/vector:0.28.1-alpine
     restart: unless-stopped
+    networks:
+      - supabase_network
     volumes:
       - ./volumes/logs/vector.yml:/etc/vector/vector.yml:ro,z
       - ${DOCKER_SOCKET_LOCATION}:/var/run/docker.sock:ro,z
@@ -426,10 +401,11 @@ services:
     security_opt:
       - "label=disable"
 
-  # Update the DATABASE_URL if you are using an external Postgres database
   supavisor:
     image: supabase/supavisor:2.5.1
     restart: unless-stopped
+    networks:
+      - supabase_network
     volumes:
       - ./volumes/pooler/pooler.exs:/etc/pooler/pooler.exs:ro,z
     healthcheck:
@@ -478,3 +454,7 @@ services:
 
 volumes:
   db-config:
+
+networks:
+  supabase_network:
+    driver: bridge
